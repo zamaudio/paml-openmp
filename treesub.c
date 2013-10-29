@@ -2,6 +2,7 @@
    subroutines that operates on trees, inserted into other programs 
    such as baseml, basemlg, codeml, and pamp.
 */
+#include <omp.h>
 
 extern char BASEs[], *EquateBASE[], BASEs5[], *EquateBASE5[], AAs[], BINs[], CODONs[][4], nChara[], CharaMap[][64];
 
@@ -1958,7 +1959,7 @@ int DistanceMatNG86 (FILE *fout, FILE*fds, FILE*fdn, FILE*ft, double alpha)
       }
       for(js=0; js<is; js++) {
          for(k=0; k<4; k++) nsd[k] = 0;
-         for (h=0,lst=0,nst=nat=S=N=0; h<com.npatt; h++)  {
+	 for (h=0,lst=0,nst=nat=S=N=0; h<com.npatt; h++)  {
             if(com.z[is][h]>=com.ncode || com.z[js][h]>=com.ncode) 
                continue;
             codon[0] = CODONs[com.z[is][h]];
@@ -2033,30 +2034,48 @@ int eigenQREVbase (FILE* fout, double Q[NCODE*NCODE], double kappa[], double pi[
    This returns the Q matrix in Q.
 */
    int n=com.ncode, i,j,k;
+   int chunk;
    int nr = (com.ngene>1 && com.Mgene>=3 ? com.nrate/com.ngene : com.nrate);
    double Q0[NCODE*NCODE], U[NCODE*NCODE], V[NCODE*NCODE], mr, space_pisqrt[NCODE*NCODE];
 
    NPMatUVRoot=0;
    *nR=n;
+   chunk=10;
    zero(Q, n*n);
    if(com.model==REV) {
       if(n!=4) error2("ncode != 4 for REV");
       Q[3*n+2] = Q[2*n+3] = 1;  /* r_AG = r_GA = 1. */
-      for(i=0,k=0; i<n-1; i++) for (j=i+1; j<n; j++)
+      #pragma omp parallel shared(Q, kappa, k, chunk) private(i,j) 
+      {
+      k=0;
+      #pragma omp for schedule (static, chunk)
+      for(i=0; i<n-1; i++) 
+        for (j=i+1; j<n; j++)
          if(i*n+j != 2*n+3)
             Q[i*n+j] = Q[j*n+i] = kappa[k++];
+      }
    }
    else       /* (model==REVu) */
+      #pragma omp parallel shared(Q, kappa, chunk) private(i,j)
+      {
+      #pragma omp for schedule (static, chunk)
       for(i=0; i<n-1; i++) for(j=i+1; j<n; j++)
          Q[i*n+j]=Q[j*n+i] = (StepMatrix[i*n+j] ? kappa[StepMatrix[i*n+j]-1] : 1);
-
+      }
+   #pragma omp parallel shared(Q, pi, mr, chunk) private(i,j)
+   {
+   #pragma omp for schedule (static, chunk)
    for(i=0; i<n; i++) for(j=0; j<n; j++)
       Q[i*n+j] *= pi[j];
-
-   for (i=0,mr=0; i<n; i++) {
+   
+   mr=0;
+   #pragma omp for schedule (static, chunk)
+   for (i=0; i<n; i++) {
       Q[i*n+i] = 0; 
       Q[i*n+i] = -sum(Q+i*n, n);
       mr -= pi[i]*Q[i*n+i]; 
+   }
+   
    }
    abyx(1/mr, Q, n*n);
 
@@ -2076,8 +2095,12 @@ int eigenQREVbase (FILE* fout, double Q[NCODE*NCODE], double kappa[], double pi[
    else {
       xtoy (Q, Q0, n*n);
       eigenQREV(Q0, pi, n, Root, U, V, space_pisqrt);
+      #pragma omp parallel shared(Cijk, U, V, chunk) private(i,j,k)
+      {
+      #pragma omp for schedule (static, chunk)
       for(i=0; i<n; i++) for(j=0; j<n; j++) for(k=0; k<n; k++) 
          Cijk[i*n*n+j*n+k] = U[i*n+k]*V[k*n+j];
+      }
    }
    return (0);
 }
@@ -2311,7 +2334,6 @@ void NodeToBranchSub (int inode);
 void NodeToBranchSub (int inode)
 {
    int i, ison;
-
    for(i=0; i<nodes[inode].nson; i++) {
       tree.branches[tree.nbranch][0] = inode;
       tree.branches[tree.nbranch][1] = ison = nodes[inode].sons[i];
