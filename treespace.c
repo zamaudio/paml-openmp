@@ -2,7 +2,6 @@
    collection of tree perturbation routines
 */
 
-#include <omp.h>
 #include "paml.h"
 
 int MakeTreeIb (int ns, int Ib[], int rooted)
@@ -50,22 +49,16 @@ int GetTreeI (int itree, int ns, int rooted)
    adding species.
    returns a random tree if itree==-1, in which case ns can be large
 */
-   int i, M[NS-2], nM=ns-3+rooted, Ib[NS-2], chunk=10;
-   #pragma omp parallel shared(M, Ib, itree, chunk) private(i)
-   {
+   int i, M[NS-2], nM=ns-3+rooted, Ib[NS-2];
 
-   #pragma omp for schedule (static, chunk)
    for (i=0; i<nM-1; i++) M[i]=2*i+5;
    
    M[nM-1]=1;
-   #pragma omp for schedule (static, chunk)
    for (i=0; i<nM-2; i++) M[nM-1-i-2]*=M[nM-1-i-1];
 
    if (itree==-1) {
-        #pragma omp for schedule (static, chunk)
    	for (i=0; i<nM; i++) Ib[i]=(int)((2*i+3)*rndu());
    } else {
-        #pragma omp for schedule (static, chunk)
    	for (i=0; i<nM; i++) {Ib[i]=itree/M[i]; itree%=M[i]; } 
    }
 /*
@@ -74,7 +67,6 @@ int GetTreeI (int itree, int ns, int rooted)
       FOR (i, nM) printf ("%5d ", Ib[i]);  FPN (F0);
    }
 */
-   }
    MakeTreeIb (ns, Ib, rooted);
    return (0);
 }
@@ -188,7 +180,7 @@ int GetIofTree (int rooted, int keeptree, double space[])
    Works with binary trees only.
    bA[nbranch*(ns-2)]
 */
-   int M[NS-2], nM=com.ns-3+rooted, chunk=10;
+   int M[NS-2], nM=com.ns-3+rooted;
    int i,j,k,is,it, b=0,a1,a2,Ib[NS-1], nid=tree.nnode-com.ns;
    char ns2=(char)(com.ns-2), *bA=(char*)space;  /* bA[b*ns2+j]: ancestors on branch b */
    struct TREEB tree0=tree;
@@ -250,19 +242,13 @@ int GetIofTree (int rooted, int keeptree, double space[])
    }
    if (keeptree)  { tree=tree0;  BranchToNode (); }
 
-   #pragma omp parallel shared(M, Ib, it, chunk) private(i)
-   {
-   #pragma omp for schedule (static, chunk)
    for (i=0; i<nM-1; i++) M[i]=2*i+5;
    
    M[nM-1]=1;
-   #pragma omp for schedule (static, chunk)
    for (i=0; i<nM-2; i++) M[nM-1-i-2]*=M[nM-1-i-1];
    
    it=0;
-   #pragma omp for schedule (static, chunk)
    for (i=0; i<nM; i++) it+=Ib[i]*M[i];
-   }
    return (it);
 }
 

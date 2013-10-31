@@ -8,6 +8,7 @@
                           baseml <ControlFileName>
 */
 
+#include <omp.h>
 #include "paml.h"
 
 #define NS            7000
@@ -1371,6 +1372,8 @@ int ConditionalPNode (int inode, int igene, double x[])
       for(h=pos0; h<pos1; h++)
          nodes[inode].conP[h*n+com.z[inode][h]] = 1;
 
+   int chunk = 10;
+
    for (i=0; i<nodes[inode].nson; i++) {
       ison = nodes[inode].sons[i];
       t = nodes[ison].branch*_rateSite;
@@ -1382,11 +1385,17 @@ int ConditionalPNode (int inode, int igene, double x[])
       GetPMatBranch(PMat, x, t, ison);
 
       if (nodes[ison].nson<1 && com.cleandata) {        /* tip && clean */
+         #pragma omp parallel for default(none) \
+	 	shared(inode, ison, pos0, pos1, nodes, PMat, com, n) \
+	 	private(h, j)
          for(h=pos0; h<pos1; h++)
             for(j=0; j<n; j++)
                nodes[inode].conP[h*n+j] *= PMat[j*n+com.z[ison][h]];
       }
       else if (nodes[ison].nson<1 && !com.cleandata) {  /* tip & unclean */
+         #pragma omp parallel for default(none) \
+	 	shared(nodes, inode, ison, pos0, pos1, PMat, com, n, t, nChara, CharaMap) \
+	 	private(h, j, k)
          for(h=pos0; h<pos1; h++)
             for(j=0; j<n; j++) {
                for(k=0,t=0; k<nChara[com.z[ison][h]]; k++)
@@ -1395,6 +1404,9 @@ int ConditionalPNode (int inode, int igene, double x[])
             }
       }
       else {
+         #pragma omp parallel for default(none) \
+	 	shared(nodes, inode, pos0, pos1, ison, PMat, com, n, t) \
+	 	private(h, j, k)
          for(h=pos0; h<pos1; h++)
             for(j=0; j<n; j++) {
                for(k=0,t=0; k<n; k++)
@@ -1404,6 +1416,7 @@ int ConditionalPNode (int inode, int igene, double x[])
       }
 
    }        /*  for (ison)  */
+   
    if(com.NnodeScale && com.nodeScale[inode])  NodeScale(inode, pos0, pos1);
    return (0);
 }
@@ -1421,6 +1434,8 @@ int PMatCijk (double P[], double t)
    if (t<1e-200) { identity (P, n); return(0); }
 
    for (k=1; k<nr; k++) expt[k] = exp(t*Root[k]);
+
+   #pragma omp parallel for default(none) shared(Cijk, pij, P, expt, n, nr) private(i,j,k)
    for(i=0; i<n; i++) for(j=0; j<n; j++) {
       for (k=1,pij=Cijk[i*n*nr+j*nr+0]; k<nr; k++)
          pij += Cijk[i*n*nr+j*nr+k]*expt[k];

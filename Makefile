@@ -3,7 +3,7 @@ PRGS =  baseml codeml basemlg mcmctree pamp evolver yn00 chi2
 CC = gcc # cc, gcc, cl
 
 # Removed -O4 and added -fopenmp
-CFLAGS = -O3 -funroll-loops -fomit-frame-pointer -finline-functions -fopenmp
+CFLAGS = -O3 -funroll-loops -fomit-frame-pointer -finline-functions -fopenmp -g
 
 #MAC OSX G5:
 #CFLAGS = -mcpu=G5 -O4 -funroll-loops -fomit-frame-pointer -finline-functions
